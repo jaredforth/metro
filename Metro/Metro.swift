@@ -12,16 +12,12 @@ final class Clicker {
     init() {
         bpm.initialize(to: 120); running.initialize(to: false); beats.initialize(to: 0)
         let rate = engine.outputNode.outputFormat(forBus: 0).sampleRate
-        var count = Double.infinity, env = 0.0, phase = 0.0, wasRunning = false
+        var tick = Tick(), env = 0.0, phase = 0.0
         let node = AVAudioSourceNode { [bpm, running, beats] _, _, frames, abl in
             for buf in UnsafeMutableAudioBufferListPointer(abl) {
                 let out = buf.mData!.assumingMemoryBound(to: Float.self)
                 for i in 0..<Int(frames) {
-                    if running.pointee {
-                        if !wasRunning { count = .infinity; wasRunning = true } // first click right away
-                        count += 1
-                        if count >= rate * 60 / bpm.pointee { count = 0; env = 1; phase = 0; beats.pointee += 1 }
-                    } else { wasRunning = false }
+                    if tick.step(rate: rate, bpm: bpm.pointee, running: running.pointee) { env = 1; phase = 0; beats.pointee += 1 }
                     phase += 1500 / rate
                     out[i] = Float(0.6 * env * sin(2 * Double.pi * phase))
                     env *= 0.9985 // ~30 ms decay
@@ -36,7 +32,7 @@ final class Clicker {
 }
 
 final class Model: ObservableObject {
-    @Published var bpm = 120 { didSet { bpm = min(300, max(20, bpm)); clicker.bpm.pointee = Double(bpm) } }
+    @Published var bpm = 120 { didSet { bpm = clampBPM(bpm); clicker.bpm.pointee = Double(bpm) } }
     @Published var running = false
     @Published var flash = false
     private let clicker = Clicker()
