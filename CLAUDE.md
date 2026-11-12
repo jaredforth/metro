@@ -4,7 +4,7 @@ Minimal macOS app: a metronome. Big BPM number, a dot that flashes on each beat,
 
 ## Layout
 - `Metro/Metro.swift` (app, audio, `MetroView`) and `Metro/Logo.swift` (icon art, shared with `tools/main.swift`, which renders the icon). No Xcode project, no deps. `build.sh` compiles with `swiftc` into `build/Metro.app` (hand-written Info.plist).
-- `Clicker` generates clicks on the audio thread (1500 Hz sine, fast decay) by counting samples, so timing doesn't depend on UI timers. The UI polls its beat counter at 60 Hz to flash the dot.
+- `Clicker` generates clicks on the audio thread (800 Hz sine, fast decay) by counting samples, so timing doesn't depend on UI timers. The UI polls its beat counter at 60 Hz to flash the dot.
 
 ## Tests
 `./test.sh` runs plain asserts (`tools/test.swift`) against `Metro/Tick.swift`, the beat clock and BPM clamp split out of the audio callback so they're testable. No framework.

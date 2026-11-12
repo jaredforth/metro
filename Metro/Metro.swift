@@ -18,7 +18,7 @@ final class Clicker {
                 let out = buf.mData!.assumingMemoryBound(to: Float.self)
                 for i in 0..<Int(frames) {
                     if tick.step(rate: rate, bpm: bpm.pointee, running: running.pointee) { env = 1; phase = 0; beats.pointee += 1 }
-                    phase += 1500 / rate
+                    phase += 800 / rate
                     out[i] = Float(0.6 * env * sin(2 * Double.pi * phase))
                     env *= 0.9985 // ~30 ms decay
                 }
@@ -32,7 +32,14 @@ final class Clicker {
 }
 
 final class Model: ObservableObject {
-    @Published var bpm = 120 { didSet { bpm = clampBPM(bpm); clicker.bpm.pointee = Double(bpm) } }
+    // Re-assigning inside didSet re-enters it on @Published (wrapper setter), so only do it when the clamp changes the value.
+    @Published var bpm = 120 {
+        didSet {
+            let c = clampBPM(bpm)
+            if c != bpm { bpm = c; return }
+            clicker.bpm.pointee = Double(bpm)
+        }
+    }
     @Published var running = false
     @Published var flash = false
     private let clicker = Clicker()
@@ -41,6 +48,7 @@ final class Model: ObservableObject {
     // Up/right = faster, down/left = slower (shift = 10); space/return starts and stops.
     init() {
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
+            if NSApp.keyWindow?.firstResponder is NSText { return e } // typing in the BPM field
             let step = e.modifierFlags.contains(.shift) ? 10 : 1
             switch e.keyCode {
             case 123, 125: bpm -= step
@@ -66,13 +74,19 @@ struct MetroView: View {
     var body: some View {
         VStack(spacing: 28) {
             Circle().fill(model.flash ? Color.orange : Color.gray.opacity(0.35)).frame(width: 120, height: 120)
-            Text("\(model.bpm)").font(.system(size: 96, weight: .light, design: .rounded)).monospacedDigit()
+            // Commits on Return/focus loss (clamped by the model), so typing "50" isn't clamped to 20 at "5".
+            TextField("", value: $model.bpm, format: .number.grouping(.never))
+                .textFieldStyle(.plain).multilineTextAlignment(.center).frame(width: 240)
+                .font(.system(size: 96, weight: .light, design: .rounded)).monospacedDigit()
+                .onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
             HStack(spacing: 16) {
                 Button("−") { model.bpm -= 1 }
                 Button(model.running ? "Stop" : "Start") { model.toggle() }.frame(width: 80)
                 Button("+") { model.bpm += 1 }
             }.font(.title2).controlSize(.large)
         }
+        // Don't auto-focus the field on launch, or space/arrows would edit text instead of controlling the metronome.
+        .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil) } }
     }
 }
 
